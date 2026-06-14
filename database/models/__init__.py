@@ -14,6 +14,9 @@ __all__ = [
     "Playlist",
     "PlaylistTrack",
     "RecentlyPlayed",
-    "Favorite",
+    "FavoriteTrack",
     "Settings",
 ]
+
+# Alias for backward compatibility (init_db expects ``Favorite``)
+Favorite = FavoriteTrack

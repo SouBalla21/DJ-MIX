@@ -8,7 +8,7 @@ serialization format.
 
 from datetime import datetime
 from typing import Optional, List
-from sqlmodel import Field, SQLModel
+from sqlmodel import SQLModel, Field, Relationship
 
 
 class Track(SQLModel, table=True):
