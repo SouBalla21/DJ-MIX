@@ -5,7 +5,7 @@
  * All HTTP errors throw an Error containing the status code and response text.
  */
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "http://127.0.0.1:8000";
 
 type HttpMethod = "GET" | "POST" | "PUT" | "DELETE";
 
@@ -51,7 +51,7 @@ async function apiRequest<T>(
 ------------------------------------------------------------ */
 
 export async function getTracks() {
-  return apiRequest<any[]>("/api/tracks");
+  return apiRequest<any[]>("/api/tracks/");
 }
 
 export async function getTrack(trackId: number) {
@@ -68,7 +68,7 @@ export async function searchTracks(query: string) {
 ------------------------------------------------------------ */
 
 export async function getPlaylists() {
-  return apiRequest<any[]>("/api/playlists");
+  return apiRequest<any[]>("/api/playlists/");
 }
 
 export async function getPlaylist(playlistId: number) {
@@ -76,7 +76,7 @@ export async function getPlaylist(playlistId: number) {
 }
 
 export async function createPlaylist(name: string) {
-  return apiRequest<any>("/api/playlists", "POST", { name });
+  return apiRequest<any>("/api/playlists/", "POST", { name });
 }
 
 export async function deletePlaylist(playlistId: number) {
@@ -91,7 +91,7 @@ export async function deletePlaylist(playlistId: number) {
 ------------------------------------------------------------ */
 
 export async function getFavorites() {
-  return apiRequest<any[]>("/api/favorites");
+  return apiRequest<any[]>("/api/favorites/");
 }
 
 export async function addFavorite(trackId: number) {
@@ -113,7 +113,7 @@ export async function removeFavorite(trackId: number) {
 ------------------------------------------------------------ */
 
 export async function getRecentlyPlayed() {
-  return apiRequest<any[]>("/api/history");
+  return apiRequest<any[]>("/api/history/");
 }
 
 /* ------------------------------------------------------------
@@ -121,12 +121,12 @@ export async function getRecentlyPlayed() {
 ------------------------------------------------------------ */
 
 export async function getSettings() {
-  return apiRequest<any>("/api/settings");
+  return apiRequest<any>("/api/settings/");
 }
 
 export async function updateSettings(settings: object) {
   return apiRequest<any>(
-    "/api/settings",
+    "/api/settings/",
     "PUT",
     settings
   );
@@ -144,6 +144,23 @@ export async function importDirectory(directoryPath: string) {
       directory_path: directoryPath,
     }
   );
+}
+
+export async function uploadTracks(files: FileList | File[]) {
+  const formData = new FormData();
+  Array.from(files).forEach((file) => formData.append("files", file));
+
+  const response = await fetch(`${API_BASE_URL}/api/library/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`HTTP ${response.status}: ${errText}`);
+  }
+
+  return response.json();
 }
 
 export async function rescanLibrary() {

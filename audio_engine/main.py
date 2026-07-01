@@ -92,8 +92,8 @@ async def _load_track(payload: dict):
 
     # Analyse (bpm, duration) – cached for speed
     analysis = get_cached_analysis(str(path), audio_data, sr)
-    bpm = analysis.get('bpm', 0.0)
-    duration = analysis.get('duration', 0.0)
+    bpm = float(analysis.get('bpm', 0.0) or 0.0)
+    duration = float(analysis.get('duration', 0.0) or 0.0)
 
     # Push UI notification
     await _ws_server.push_track_loaded(deck_id, str(path), duration, bpm)
@@ -139,12 +139,14 @@ async def _set_rate(payload: dict):
     return {'status': 'ok'}
 
 async def _set_eq(payload: dict):
-    deck = _deck_a if payload.get('deck') == 'A' else _deck_b
+    deck_id = payload.get('deck')
+    deck = _deck_a if deck_id == 'A' else _deck_b
     low = payload.get('low')
     mid = payload.get('mid')
     high = payload.get('high')
     with _rt_lock:
         deck.set_eq(low, mid, high)
+        _mixer.set_deck_eq(deck_id, deck.state.eq_low, deck.state.eq_mid, deck.state.eq_high)
     return {'status': 'ok'}
 
 async def _set_crossfader(payload: dict):
@@ -182,23 +184,28 @@ async def _set_devices(payload: dict):
     # Restart streams with new device config
     with _rt_lock:
         _device_manager.close_streams()
-        master_stream, cue_stream = _device_manager.open_streams(_make_callback(True))
-        # Attach same callback for cue stream via a second wrapper
-        cue_stream.callback = _make_callback(False)  # type: ignore[attr-defined]
+        _device_manager.open_streams(_make_callback(True), _make_callback(False))
         _device_manager.start_streams()
     return {'status': 'ok'}
+
+async def _get_devices(_: dict):
+    return {
+        'devices': [asdict(device) for device in _device_manager.list_output_devices()],
+        'master': asdict(_device_manager.master_device) if _device_manager.master_device else None,
+        'cue': asdict(_device_manager.cue_device) if _device_manager.cue_device else None,
+    }
 
 async def _get_position(_: dict):
     return {
         'deck_a': {
-            'position': _deck_a.get_position_seconds(),
-            'duration': _deck_a.state.duration / _deck_a.sample_rate,
-            'playing': _deck_a.state.playing,
+            'position': float(_deck_a.get_position_seconds()),
+            'duration': float(_deck_a.state.duration / _deck_a.sample_rate),
+            'playing': bool(_deck_a.state.playing),
         },
         'deck_b': {
-            'position': _deck_b.get_position_seconds(),
-            'duration': _deck_b.state.duration / _deck_b.sample_rate,
-            'playing': _deck_b.state.playing,
+            'position': float(_deck_b.get_position_seconds()),
+            'duration': float(_deck_b.state.duration / _deck_b.sample_rate),
+            'playing': bool(_deck_b.state.playing),
         },
     }
 
@@ -259,6 +266,7 @@ async def initialize_engine():
         'set_cue_volume': _set_cue_volume,
         'set_deck_cue': _set_deck_cue,
         'set_devices': _set_devices,
+        'get_devices': _get_devices,
         'get_position': _get_position,
         'get_meters': _get_meters,
         'get_state': _get_state,
@@ -269,10 +277,7 @@ async def initialize_engine():
     # Open streams with callbacks (master & cue)
     master_cb = _make_callback(True)
     cue_cb = _make_callback(False)
-    master_stream, cue_stream = _device_manager.open_streams(master_cb)
-    # Assign cue callback – sounddevice OutputStream accepts callback arg at init,
-    # but we created streams without it; we can set the `callback` attribute.
-    cue_stream.callback = cue_cb  # type: ignore[attr-defined]
+    _device_manager.open_streams(master_cb, cue_cb)
 
     # Start streams
     _device_manager.start_streams()

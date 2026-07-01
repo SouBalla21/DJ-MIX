@@ -14,6 +14,7 @@ from sqlmodel import SQLModel, Field, Relationship
 class Track(SQLModel, table=True):
     # Relationships
     playlists: List["PlaylistTrack"] = Relationship(back_populates="track")
+    favorite: Optional["FavoriteTrack"] = Relationship(back_populates="track")
     """Audio track metadata.
 
     * ``id`` – Primary key, auto‑generated.

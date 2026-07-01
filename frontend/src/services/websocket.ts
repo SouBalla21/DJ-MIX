@@ -18,11 +18,12 @@ export interface WSResponse {
 }
 
 class AudioWebSocketClient {
-  private static readonly URL = "ws://localhost:8000/ws/audio";
+  private static readonly URL = "ws://127.0.0.1:8000/ws/audio";
   private static readonly DEFAULT_TIMEOUT = 5000;
 
   private ws: WebSocket | null = null;
   private connected = false;
+  private connectingPromise: Promise<void> | null = null;
 
   private requestCounter = 0;
 
@@ -38,6 +39,7 @@ class AudioWebSocketClient {
   private openListeners: Array<() => void> = [];
   private closeListeners: Array<() => void> = [];
   private errorListeners: Array<(event: Event) => void> = [];
+  private messageListeners: Array<(response: WSResponse) => void> = [];
 
   /**
    * Connect to the WebSocket server.
@@ -47,11 +49,16 @@ class AudioWebSocketClient {
       return Promise.resolve();
     }
 
-    return new Promise((resolve, reject) => {
+    if (this.connectingPromise) {
+      return this.connectingPromise;
+    }
+
+    this.connectingPromise = new Promise((resolve, reject) => {
       this.ws = new WebSocket(AudioWebSocketClient.URL);
 
       const handleOpen = () => {
         this.connected = true;
+        this.connectingPromise = null;
 
         this.ws?.addEventListener("message", this.handleMessage);
         this.ws?.addEventListener("close", this.handleClose);
@@ -64,6 +71,7 @@ class AudioWebSocketClient {
 
       const handleError = (event: Event) => {
         this.cleanupSocket();
+        this.connectingPromise = null;
 
         this.errorListeners.forEach((cb) => cb(event));
 
@@ -73,6 +81,8 @@ class AudioWebSocketClient {
       this.ws.addEventListener("open", handleOpen, { once: true });
       this.ws.addEventListener("error", handleError, { once: true });
     });
+
+    return this.connectingPromise;
   }
 
   /**
@@ -110,6 +120,10 @@ class AudioWebSocketClient {
 
   public onError(callback: (event: Event) => void): void {
     this.errorListeners.push(callback);
+  }
+
+  public onMessage(callback: (response: WSResponse) => void): void {
+    this.messageListeners.push(callback);
   }
 
   /**
@@ -171,6 +185,8 @@ class AudioWebSocketClient {
       return;
     }
 
+    this.messageListeners.forEach((cb) => cb(response));
+
     const requestId = response.request_id;
 
     if (!requestId) {
@@ -208,6 +224,7 @@ class AudioWebSocketClient {
    */
   private handleClose = (): void => {
     this.connected = false;
+    this.connectingPromise = null;
 
     this.closeListeners.forEach((cb) => cb());
 

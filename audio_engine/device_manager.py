@@ -153,7 +153,7 @@ class DeviceManager:
             }
         }
 
-    def open_streams(self, callback) -> tuple[sd.OutputStream, sd.OutputStream]:
+    def open_streams(self, master_callback, cue_callback=None) -> tuple[sd.OutputStream, sd.OutputStream]:
         """
         Open Master and Cue output streams with the same callback.
 
@@ -166,8 +166,8 @@ class DeviceManager:
         # sounddevice doesn't support multi-device callbacks directly
         # So we'll use a shared buffer approach in the mixer
 
-        self._master_stream = sd.OutputStream(**config['master'])
-        self._cue_stream = sd.OutputStream(**config['cue'])
+        self._master_stream = sd.OutputStream(**config['master'], callback=master_callback)
+        self._cue_stream = sd.OutputStream(**config['cue'], callback=cue_callback or master_callback)
 
         return self._master_stream, self._cue_stream
 

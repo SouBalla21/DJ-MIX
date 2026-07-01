@@ -77,7 +77,7 @@ async def audio_websocket_endpoint(
     await _manager.connect(websocket)
 
     # Singleton AudioEngineWSServer instance
-    ws_server = get_ws_server()
+    ws_server = await get_ws_server()
 
     try:
         while True:

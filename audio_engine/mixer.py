@@ -252,7 +252,8 @@ class DJMixer:
     def get_meter_levels(self) -> dict:
         """Get current meter levels in dBFS."""
         def to_db(x):
-            return 20 * np.log10(x) if x > 1e-10 else -60.0
+            x = float(x)
+            return float(20 * np.log10(x)) if x > 1e-10 else -60.0
 
         return {
             'master_l': to_db(self.master_peak_l),

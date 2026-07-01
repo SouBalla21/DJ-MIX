@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict
 
-from audio_engine.decoder import get_metadata
+from audio_engine.decoder import get_decoder
 from database.crud import add_track, get_track_by_filepath
 
 SUPPORTED_EXTENSIONS = {
@@ -34,7 +34,7 @@ def _extract_metadata(filepath: Path) -> Dict[str, Any]:
 
     Missing fields are replaced with None.
     """
-    metadata = get_metadata(str(filepath))
+    metadata = get_decoder().get_metadata(filepath)
 
     return {
         "title": metadata.get("title"),

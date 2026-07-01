@@ -20,6 +20,9 @@ from backend.routes.settings import router as settings_router
 from backend.routes.history import router as history_router
 from backend.routes.favorites import router as favorites_router
 from backend.routes.library import router as library_router
+from backend.websocket.audio_ws import router as audio_ws_router
+from audio_engine.main import initialize_engine, shutdown_engine
+from database.session import init_db
 
 # Local imports – the database package contains the ``init_db`` helper.
 
@@ -64,17 +67,26 @@ app.include_router(settings_router, prefix="/api")
 app.include_router(history_router, prefix="/api")
 app.include_router(favorites_router, prefix="/api")
 app.include_router(library_router, prefix="/api")
+app.include_router(audio_ws_router)
 
 # ---------------------------------------------------------------------------
 # Application lifecycle events
 # ---------------------------------------------------------------------------
 @app.on_event("startup")
 async def on_startup():
-    print("Backend started")
+    init_db()
+    app.state.audio_error = None
+    try:
+        await initialize_engine()
+        print("Backend and audio engine started")
+    except Exception as exc:
+        app.state.audio_error = str(exc)
+        print(f"Backend started, but audio engine failed: {exc}")
 
 
 @app.on_event("shutdown")
 async def on_shutdown():
+    await shutdown_engine()
     print("Backend stopped")
 
 # ---------------------------------------------------------------------------

@@ -176,7 +176,10 @@ class DeckTransport:
         elif audio_data.shape[1] > 2:
             audio_data = audio_data[:, :2]
 
-        self.buffer.clear()
+        if audio_data.shape[0] > self.buffer.capacity:
+            self.buffer = RingBuffer(audio_data.shape[0], channels=2)
+        else:
+            self.buffer.clear()
         self.buffer.write(audio_data)
 
         self._track_duration_samples = audio_data.shape[0]

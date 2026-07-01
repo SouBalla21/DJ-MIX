@@ -20,9 +20,10 @@ requested, while the stats endpoint can safely use the read‑only CRUD function
 
 from __future__ import annotations
 
-from typing import Dict
+from pathlib import Path
+from typing import Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlmodel import Session
 
 # Dependency that yields a DB session – kept for consistency even though the
@@ -43,12 +44,14 @@ from database.crud import (
 
 router = APIRouter(prefix="/library", tags=["library"])
 
+UPLOAD_DIR = Path("imported_tracks")
+
 
 @router.post("/import", status_code=status.HTTP_200_OK)
 def import_library(
-    directory_path: str,
+    payload: Dict[str, str],
     db: Session = Depends(get_db),
-) -> Dict[str, int]:
+) -> Dict[str, object]:
     """Import all tracks from a given directory.
 
     The endpoint expects a JSON payload with a single ``directory_path`` field.
@@ -56,18 +59,62 @@ def import_library(
     number of tracks added.
     """
     try:
-        from import_service import import_directory  # type: ignore
+        from backend.services.import_service import import_directory
     except ImportError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Import service not available",
         ) from exc
 
+    directory_path = payload.get("directory_path")
+    if not directory_path:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="directory_path is required",
+        )
+
     try:
         count = import_directory(directory_path)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
     return {"imported": count}
+
+
+@router.post("/upload", status_code=status.HTTP_200_OK)
+async def upload_tracks(
+    files: List[UploadFile] = File(...),
+    db: Session = Depends(get_db),
+) -> Dict[str, object]:
+    """Upload one or more audio files and add them to the local library."""
+    from backend.services.import_service import import_file
+
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+    stats = {"added": 0, "skipped": 0, "errors": 0}
+
+    for upload in files:
+      filename = Path(upload.filename or "").name
+      if not filename:
+          stats["errors"] += 1
+          continue
+
+      target = UPLOAD_DIR / filename
+      if target.exists():
+          stem = target.stem
+          suffix = target.suffix
+          counter = 1
+          while target.exists():
+              target = UPLOAD_DIR / f"{stem}-{counter}{suffix}"
+              counter += 1
+
+      try:
+          target.write_bytes(await upload.read())
+          file_stats = import_file(target.resolve())
+          for key in stats:
+              stats[key] += file_stats[key]
+      except Exception:
+          stats["errors"] += 1
+
+    return {"imported": stats}
 
 
 @router.post("/rescan", status_code=status.HTTP_200_OK)
@@ -78,7 +125,7 @@ def rescan_library(db: Session = Depends(get_db)) -> Dict[str, int]:
     returns the count of newly added tracks.
     """
     try:
-        from import_service import rescan_library  # type: ignore
+        from backend.services.import_service import rescan_library
     except ImportError as exc:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

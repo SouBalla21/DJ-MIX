@@ -80,7 +80,7 @@ export default function PlaylistPanel() {
   /** Handle deletion of a playlist. */
   const handleDelete = async (id: string | number) => {
     try {
-      await deletePlaylist(id);
+      await deletePlaylist(Number(id));
       // Refresh list after deletion
       await fetchPlaylists();
     } catch (e) {
