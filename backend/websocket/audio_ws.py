@@ -104,9 +104,11 @@ async def audio_websocket_endpoint(
             handler = ws_server.handlers.get(cmd)
 
             if handler is None:
+                app = websocket.scope.get("app")
+                audio_error = getattr(getattr(app, "state", None), "audio_error", None)
                 await websocket.send_text(
                     _error_message(
-                        f"Unknown command: {cmd}",
+                        audio_error or f"Unknown command: {cmd}",
                         request_id,
                     )
                 )
@@ -139,4 +141,4 @@ async def audio_websocket_endpoint(
 
     finally:
         # Remove websocket from manager
-        _manager.disconnect(websocket)
+        await _manager.disconnect(websocket)

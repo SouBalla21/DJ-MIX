@@ -83,7 +83,7 @@ async def _load_track(payload: dict):
         raise ValueError(f"Unsupported audio format: {path.suffix}")
 
     # Decode
-    audio_data, sr = _decoder.decode_file(path)
+    audio_data, sr = await asyncio.to_thread(_decoder.decode_file, path)
 
     # Load into selected deck
     deck = _deck_a if deck_id == 'A' else _deck_b
@@ -91,13 +91,21 @@ async def _load_track(payload: dict):
         deck.load_track(audio_data, sr)
 
     # Analyse (bpm, duration) – cached for speed
-    analysis = get_cached_analysis(str(path), audio_data, sr)
-    bpm = float(analysis.get('bpm', 0.0) or 0.0)
-    duration = float(analysis.get('duration', 0.0) or 0.0)
-
-    # Push UI notification
-    await _ws_server.push_track_loaded(deck_id, str(path), duration, bpm)
+    duration = float(deck.state.duration / deck.sample_rate)
+    asyncio.create_task(_push_track_analysis(deck_id, path, audio_data, sr, duration))
+    await _ws_server.push_track_loaded(deck_id, str(path), duration, 0.0)
     return {'status': 'ok'}
+
+
+async def _push_track_analysis(deck_id: str, path: Path, audio_data: np.ndarray, sr: int, duration: float):
+    try:
+        analysis = await asyncio.to_thread(get_cached_analysis, str(path), audio_data, sr)
+        bpm = float(analysis.get('bpm', 0.0) or 0.0)
+    except Exception as exc:
+        logger.warning("Track analysis failed for %s: %s", path, exc)
+        bpm = 0.0
+
+    await _ws_server.push_track_loaded(deck_id, str(path), duration, bpm)
 
 async def _play(payload: dict):
     deck = _deck_a if payload.get('deck') == 'A' else _deck_b

@@ -19,7 +19,7 @@ export interface WSResponse {
 
 class AudioWebSocketClient {
   private static readonly URL = "ws://127.0.0.1:8000/ws/audio";
-  private static readonly DEFAULT_TIMEOUT = 5000;
+  private static readonly DEFAULT_TIMEOUT = 60000;
 
   private ws: WebSocket | null = null;
   private connected = false;

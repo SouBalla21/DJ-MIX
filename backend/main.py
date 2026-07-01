@@ -21,7 +21,6 @@ from backend.routes.history import router as history_router
 from backend.routes.favorites import router as favorites_router
 from backend.routes.library import router as library_router
 from backend.websocket.audio_ws import router as audio_ws_router
-from audio_engine.main import initialize_engine, shutdown_engine
 from database.session import init_db
 
 # Local imports – the database package contains the ``init_db`` helper.
@@ -58,6 +57,16 @@ async def health_check() -> dict[str, str]:
     """
     return {"status": "ok"}
 
+
+@api_router.get("/audio/status", tags=["health"])
+async def audio_status() -> dict[str, str | bool | None]:
+    """Return whether the PortAudio-backed engine started successfully."""
+    error = getattr(app.state, "audio_error", None)
+    return {
+        "available": error is None,
+        "error": error,
+    }
+
 # Register the router under a common ``/api`` prefix.
 app.include_router(api_router, prefix="/api")
 
@@ -77,6 +86,8 @@ async def on_startup():
     init_db()
     app.state.audio_error = None
     try:
+        from audio_engine.main import initialize_engine
+
         await initialize_engine()
         print("Backend and audio engine started")
     except Exception as exc:
@@ -86,7 +97,12 @@ async def on_startup():
 
 @app.on_event("shutdown")
 async def on_shutdown():
-    await shutdown_engine()
+    try:
+        from audio_engine.main import shutdown_engine
+
+        await shutdown_engine()
+    except Exception as exc:
+        print(f"Audio engine shutdown skipped: {exc}")
     print("Backend stopped")
 
 # ---------------------------------------------------------------------------

@@ -88,13 +88,23 @@ class AudioEngineWSServer:
 
     async def start(self):
         """Start the WebSocket server."""
-        self.server = await websockets.serve(
-            self._handle_connection,
-            self.host,
-            self.port,
-            ping_interval=20,
-            ping_timeout=10
-        )
+        try:
+            self.server = await websockets.serve(
+                self._handle_connection,
+                self.host,
+                self.port,
+                ping_interval=20,
+                ping_timeout=10
+            )
+        except OSError as exc:
+            logger.warning(
+                "Standalone audio WebSocket ws://%s:%s unavailable; continuing with FastAPI WebSocket: %s",
+                self.host,
+                self.port,
+                exc,
+            )
+            return
+
         logger.info(f"WebSocket server started on ws://{self.host}:{self.port}")
 
         # Start state push task
